@@ -1,0 +1,64 @@
+"use strict";
+/* Hydro data layer, shared by the site and /admin.
+   Server mode: when server.js is running, data lives in data/db.json and /admin sees every visitor's orders.
+   Browser mode: otherwise data lives in this browser's localStorage (fine for demos and a single device). */
+const HydroStore=(()=>{
+ const J=(k,d)=>{try{const v=JSON.parse(localStorage.getItem(k));return v==null?d:v}catch(e){return d}};
+ const W=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));return true}catch(e){return false}};
+ const S={get:k=>{try{return sessionStorage.getItem(k)}catch(e){return null}},set:(k,v)=>{try{v==null?sessionStorage.removeItem(k):sessionStorage.setItem(k,v)}catch(e){}}};
+ const CROPS=[
+  {id:"lettuce",type:"leafy",ic:"leaf",en:"Lettuce",ar:"الخس"},{id:"spinach",type:"leafy",ic:"leaf",en:"Spinach",ar:"السبانخ"},
+  {id:"kale",type:"leafy",ic:"leaf",en:"Kale",ar:"الكالي"},{id:"arugula",type:"leafy",ic:"leaf",en:"Arugula",ar:"الجرجير"},
+  {id:"basil",type:"herbs",ic:"sprig",en:"Basil",ar:"الريحان"},{id:"mint",type:"herbs",ic:"sprig",en:"Mint",ar:"النعناع"},
+  {id:"parsley",type:"herbs",ic:"sprig",en:"Parsley",ar:"البقدونس"},{id:"coriander",type:"herbs",ic:"sprig",en:"Coriander",ar:"الكزبرة"},
+  {id:"strawberry",type:"fruiting",ic:"strawberry",en:"Strawberries",ar:"الفراولة"},{id:"tomato",type:"fruiting",ic:"tomato",en:"Tomatoes",ar:"الطماطم"},
+  {id:"pepper",type:"fruiting",ic:"pepper",en:"Peppers",ar:"الفلفل"},{id:"cucumber",type:"fruiting",ic:"cucumber",en:"Cucumbers",ar:"الخيار"}
+ ];
+ const DEF={
+  settings:{brand:"Hydro",email:"",phone:"",whatsapp:"",city:"",currency:"OMR",specs:{height:"",slots:"",water:"",power:"",crops:"",cycle:""},perTower:{waterLPerDay:null,areaM2:null},yields:{}},
+  products:[{id:"tower",name:"Hydro Tower",desc:"A vertical hydroponic tower with a reservoir, pump, grow light and net cups, ready to plant.",price:null,image:"data:image/webp;base64,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",category:"Towers",stock:null,active:true}]
+ };
+ const mergeS=s=>{s=s||{};return {...DEF.settings,...s,specs:{...DEF.settings.specs,...(s.specs||{})},perTower:{...DEF.settings.perTower,...(s.perTower||{})},yields:{...(s.yields||{})}}};
+ let mode="browser",token=S.get("hydro:token")||"";
+ const ready=(async()=>{try{const c=new AbortController(),t=setTimeout(()=>c.abort(),900);
+  const r=await fetch("/api/ping",{signal:c.signal,cache:"no-store"});clearTimeout(t);if(r.ok&&(await r.json()).ok)mode="server"}catch(e){}})();
+ async function api(path,opt={}){const h={"Content-Type":"application/json"};if(token)h.Authorization="Bearer "+token;
+  const r=await fetch("/api"+path,{...opt,headers:h,cache:"no-store"});
+  if(r.status===401){token="";S.set("hydro:token",null);const e=new Error("auth");e.auth=true;throw e}
+  if(!r.ok){let m="";try{m=(await r.json()).error}catch(e){}throw new Error(m||"request failed")}
+  return r.json()}
+ const newId=()=>{const d=new Date(),p=n=>String(n).padStart(2,"0");return "HY-"+String(d.getFullYear()).slice(2)+p(d.getMonth()+1)+p(d.getDate())+"-"+Math.random().toString(36).slice(2,6).toUpperCase()};
+ async function digest(s){try{const b=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(s));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,"0")).join("")}catch(e){let h=2166136261;for(const c of s){h^=c.charCodeAt(0);h=Math.imul(h,16777619)}return "f"+(h>>>0).toString(16)}}
+ const money=(n,cur)=>{const d=cur==="OMR"||cur==="KWD"||cur==="BHD"?3:2;return n.toLocaleString("en-US",{minimumFractionDigits:d,maximumFractionDigits:d})+"\u00a0"+cur};
+ return {
+  CROPS,money,DEFAULT_PRODUCTS:DEF.products,
+  get mode(){return mode},ready,
+  async settings(){await ready;return mergeS(mode==="server"?await api("/settings"):J("hydro:settings",{}))},
+  async saveSettings(s){await ready;if(mode==="server")return api("/settings",{method:"PUT",body:JSON.stringify(s)});W("hydro:settings",s);return s},
+  async products(all){await ready;let l;if(mode==="server"){l=await api("/products"+(all?"?all=1":""));if(l===null)l=DEF.products}else l=J("hydro:products",DEF.products);return all?l:l.filter(p=>p.active!==false)},
+  async saveProduct(p){await ready;
+   if(mode==="server"){const cur=await api("/products?all=1");if(cur===null)await api("/products",{method:"PUT",body:JSON.stringify(DEF.products)});return api("/products/"+encodeURIComponent(p.id),{method:"PUT",body:JSON.stringify(p)})}
+   const l=J("hydro:products",DEF.products),i=l.findIndex(x=>x.id===p.id);i<0?l.push(p):l[i]=p;if(!W("hydro:products",l))throw new Error("Storage is full. Use a smaller image.");return p},
+  async saveProducts(l){await ready;if(mode==="server")return api("/products",{method:"PUT",body:JSON.stringify(l)});W("hydro:products",l);return l},
+  async deleteProduct(id){await ready;if(mode==="server")return api("/products/"+encodeURIComponent(id),{method:"DELETE"});W("hydro:products",J("hydro:products",DEF.products).filter(p=>p.id!==id));return {ok:true}},
+  async placeOrder(o){await ready;o.lang=document.documentElement.lang||"en";
+   if(mode==="server")return api("/orders",{method:"POST",body:JSON.stringify(o)});
+   const rec={...o,id:newId(),createdAt:new Date().toISOString(),status:"new",read:false,notes:""},l=J("hydro:orders",[]);l.unshift(rec);
+   if(!W("hydro:orders",l))throw new Error("storage");return rec},
+  async orders(){await ready;if(mode==="server")return api("/orders");if(!this.isAuthed()){const e=new Error("auth");e.auth=true;throw e}return J("hydro:orders",[])},
+  async updateOrder(id,patch){await ready;if(mode==="server")return api("/orders/"+encodeURIComponent(id),{method:"PATCH",body:JSON.stringify(patch)});
+   const l=J("hydro:orders",[]),o=l.find(x=>x.id===id);if(o)Object.assign(o,patch);W("hydro:orders",l);return o},
+  async deleteOrder(id){await ready;if(mode==="server")return api("/orders/"+encodeURIComponent(id),{method:"DELETE"});W("hydro:orders",J("hydro:orders",[]).filter(x=>x.id!==id));return {ok:true}},
+  isAuthed(){return mode==="server"?!!token:S.get("hydro:authed")==="1"},
+  async login(pw){await ready;
+   if(mode==="server"){const r=await api("/login",{method:"POST",body:JSON.stringify({password:pw})});token=r.token;S.set("hydro:token",token);return true}
+   const want=J("hydro:pw",null)||await digest("hydro-admin");if(await digest(pw)===want){S.set("hydro:authed","1");return true}return false},
+  logout(){token="";S.set("hydro:token",null);S.set("hydro:authed",null)},
+  async changePassword(oldPw,newPw){if(mode==="server")throw new Error("server");const want=J("hydro:pw",null)||await digest("hydro-admin");
+   if(await digest(oldPw)!==want)return false;W("hydro:pw",await digest(newPw));return true},
+  onChange(cb){addEventListener("storage",e=>{if(e.key&&e.key.startsWith("hydro:"))cb(e.key)});setInterval(()=>{if(mode==="server"&&document.visibilityState==="visible")cb("poll")},15000)},
+  imageToDataUrl(file,max=720){return new Promise((res,rej)=>{const r=new FileReader();r.onerror=()=>rej(new Error("read"));r.onload=()=>{const im=new Image();im.onerror=()=>rej(new Error("image"));
+   im.onload=()=>{const k=Math.min(1,max/Math.max(im.width,im.height)),c=document.createElement("canvas");c.width=Math.round(im.width*k);c.height=Math.round(im.height*k);
+    c.getContext("2d").drawImage(im,0,0,c.width,c.height);res(c.toDataURL("image/webp",.82))};im.src=r.result};r.readAsDataURL(file)})}
+ };
+})();
